@@ -131,14 +131,19 @@ async function printGroups() {
 }
 
 async function status() {
-  const alerts = (await get(`${URLS.alerts}/alerts`)).alerts;
-  const deliveries = (await get(`${URLS.notifications}/deliveries`)).deliveries;
-  const dlq = (await get(`${URLS.notifications}/dlq`)).deadLetters;
+  const tryGet = async (url) => { try { return await get(url); } catch { return null; } };
+  const alertsRes = await tryGet(`${URLS.alerts}/alerts`);
+  const deliveriesRes = await tryGet(`${URLS.notifications}/deliveries`);
+  const dlqRes = await tryGet(`${URLS.notifications}/dlq`);
+  const alerts = alertsRes?.alerts ?? [];
   console.log(`\nALERTAS (${alerts.length}, últimas 5):`);
+  if (!alertsRes) console.log('  ⛔ el servicio de alertas no responde');
   alerts.slice(0, 5).forEach((a) => console.log(`  ${a.alertId}  ${a.type.padEnd(14)} ${a.cowId}  ${a.detectedAt}`));
   console.log(`\nENTREGAS (últimas 8):`);
-  deliveries.slice(0, 8).forEach((d) => console.log(`  ${d.alertId}  ${d.channel.padEnd(6)} ${d.status}${d.error ? '  (' + d.error + ')' : ''}`));
-  console.log(`\nDLQ de notificaciones: ${dlq.length} mensaje(s)`);
+  if (!deliveriesRes) console.log('  ⛔ el servicio de notificaciones está caído: las alertas nuevas esperan en el bus (ver "pendientes/lag" abajo)');
+  (deliveriesRes?.deliveries ?? []).slice(0, 8).forEach((d) => console.log(`  ${d.alertId}  ${d.channel.padEnd(6)} ${d.status}${d.error ? '  (' + d.error + ')' : ''}`));
+  const dlq = dlqRes?.deadLetters ?? [];
+  console.log(`\nDLQ de notificaciones: ${dlqRes ? dlq.length + ' mensaje(s)' : 'no disponible (servicio caído)'}`);
   dlq.forEach((d) => console.log(`  ${d.id}  ${d.reason}  intentos=${d.attempts}`));
   console.log('\nBUS:');
   await printGroups();
