@@ -43,7 +43,7 @@ Deben aparecer `redis`, `ingestion`, `alerts`, `track` y `notifications` en esta
 ## 2 · Correr la demo completa (2 minutos)
 
 ```bash
-docker compose run --rm tools demo
+docker compose run --rm --no-deps tools demo
 ```
 
 Ejecuta la historia completa y **verifica cada paso** (termina con error si algo falla):
@@ -52,34 +52,36 @@ Todo lo que pasa queda en los logs de la terminal del paso 1.
 
 ## 3 · Escenarios para mostrar en vivo
 
+> Usamos `--no-deps` en los comandos de `tools`: sin él, Compose arranca de nuevo el servicio que detuviste (el contenedor `tools` depende de todos) y el escenario no muestra nada.
+
 Cada uno corresponde a un escenario de calidad de `docs/02-escenarios.md`.
 
 **E1 · No se pierde ninguna alerta aunque notificaciones esté caído**
 
 ```bash
 docker compose stop notifications
-docker compose run --rm tools send exit
-docker compose run --rm tools status        # la alerta existe; la notificación está pendiente en el bus
+docker compose run --rm --no-deps tools send exit
+docker compose run --rm --no-deps tools status        # la alerta existe; la notificación está pendiente en el bus
 docker compose start notifications
-docker compose run --rm tools status        # ahora aparece entregada
+docker compose run --rm --no-deps tools status        # ahora aparece entregada
 ```
 
 **E1b · El proveedor de email falla: reintentos con backoff y DLQ**
 
 ```bash
-docker compose run --rm tools provider down
-docker compose run --rm tools send exit
+docker compose run --rm --no-deps tools provider down
+docker compose run --rm --no-deps tools send exit
 # esperar ~15 s y mirar los logs: reintentos a 1 s, 2 s, 4 s, 8 s y luego dead_letter
-docker compose run --rm tools status        # DLQ con 1 mensaje; el canal "log" se envió una sola vez
-docker compose run --rm tools provider up
+docker compose run --rm --no-deps tools status        # DLQ con 1 mensaje; el canal "log" se envió una sola vez
+docker compose run --rm --no-deps tools provider up
 ```
 
 **E2 · Ataques a la ingesta**
 
 ```bash
-docker compose run --rm tools attack replay    # copia exacta de una petición válida  → 409
-docker compose run --rm tools attack forged    # firma con un secreto robado          → 401
-docker compose run --rm tools attack stale     # timestamp de hace 20 minutos         → 401
+docker compose run --rm --no-deps tools attack replay    # copia exacta de una petición válida  → 409
+docker compose run --rm --no-deps tools attack forged    # firma con un secreto robado          → 401
+docker compose run --rm --no-deps tools attack stale     # timestamp de hace 20 minutos         → 401
 ```
 
 **E3 · Agregar un canal sin tocar Ingesta ni Alertas** (SMS ya está programado como adaptador)
@@ -88,25 +90,25 @@ Descomentar la línea `NOTIFY_CHANNELS` en `docker-compose.yml` (servicio `notif
 
 ```bash
 docker compose up -d notifications
-docker compose run --rm tools send exit     # ahora se entrega por log + email + sms
+docker compose run --rm --no-deps tools send exit     # ahora se entrega por log + email + sms
 ```
 
 **E4 · Carga**
 
 ```bash
-docker compose run --rm tools load --rps 200 --seconds 10
+docker compose run --rm --no-deps tools load --rps 200 --seconds 10
 ```
 
 **Independencia de procesos** (matar uno no afecta a los demás):
 
 ```bash
 docker compose kill track
-docker compose run --rm tools send exit     # las alertas siguen funcionando sin "track"
+docker compose run --rm --no-deps tools send exit     # las alertas siguen funcionando sin "track"
 docker compose start track
 ```
 
 Si repites `send exit` seguido puede que no genere alerta nueva: hay un **cooldown de 30 s por vaca y tipo**
-(evita avalanchas de alertas). `tools send exit` elige un collar al azar; para limpiar todo: `docker compose run --rm tools reset`.
+(evita avalanchas de alertas). `tools send exit` elige un collar al azar; para limpiar todo: `docker compose run --rm --no-deps tools reset`.
 
 ## 4 · Pruebas unitarias
 

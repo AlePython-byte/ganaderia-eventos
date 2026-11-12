@@ -20,21 +20,21 @@ tablas de "Alternativas consideradas" de los ADR.
 
 ## Demo en vivo (2 min 30 s)
 
-Antes de empezar: `docker compose up --build` ya corriendo y `docker compose ps` con todo en *healthy*. **Prueben esto la noche anterior.**
+Antes de empezar: `docker compose up --build` ya corriendo y `docker compose ps` con todo en *healthy*. **Prueben esto la noche anterior.** Ojo con `--no-deps`: sin él, `docker compose run` vuelve a arrancar el servicio que detuvieron.
 
 ```bash
 # 1. Todo en un comando: historia completa, con verificaciones (45 s)
-docker compose run --rm tools demo
+docker compose run --rm --no-deps tools demo
 
 # 2. Falla de un servicio: no se pierde nada (45 s)
 docker compose stop notifications
-docker compose run --rm tools send exit
-docker compose run --rm tools status       # la alerta existe, la entrega está pendiente
+docker compose run --rm --no-deps tools send exit
+docker compose run --rm --no-deps tools status       # la alerta existe, la entrega está pendiente
 docker compose start notifications
-docker compose run --rm tools status       # ya entregada
+docker compose run --rm --no-deps tools status       # ya entregada
 
 # 3. Ataque (20 s)
-docker compose run --rm tools attack replay
+docker compose run --rm --no-deps tools attack replay
 ```
 
 Si el tiempo aprieta: el paso 1 solo ya demuestra evento + dos consumidores + seguridad. El paso 2 es el que más impresiona porque muestra el *por qué* de la arquitectura.
@@ -113,7 +113,7 @@ Cinco ataques rechazados sin publicar eventos y seis pruebas unitarias de firma 
 ## Lista de la noche anterior
 
 - [ ] `docker compose up --build` corre en **tu** laptop sin errores y `docker compose ps` muestra todo *healthy*.
-- [ ] `docker compose run --rm tools demo` termina con ✅.
+- [ ] `docker compose run --rm --no-deps tools demo` termina con ✅.
 - [ ] El escenario de `stop notifications` funciona tal como está en el guion.
 - [ ] Docker Desktop abierto y la imagen ya construida (para no depender del Wi-Fi del salón).
 - [ ] Los tres integrantes pueden responder las cuatro preguntas sin mirar este documento.

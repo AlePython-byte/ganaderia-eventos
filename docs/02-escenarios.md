@@ -18,7 +18,7 @@ La columna "Verificado" separa lo que **se midió de verdad en el esqueleto** de
 | **Artefacto** | El camino Ingesta → Bus → Alertas → Bus → Notificaciones |
 | **Respuesta** | La ingesta acepta la lectura; la alerta se crea y **queda pendiente en el bus**; al recuperarse el servicio se entrega. Si el proveedor falla, se reintenta con backoff exponencial (1, 2, 4, 8 s) y, tras 5 intentos, el mensaje pasa a la cola de mensajes fallidos (DLQ) sin bloquear a los demás |
 | **Medida** | 0 alertas perdidas · la ingesta responde `202` mientras notificaciones está caído · entrega < 5 s tras recuperarse el servicio |
-| **Se prueba con** | `docker compose stop notifications` → `tools send exit` → `docker compose start notifications` (y `tools provider down` para el proveedor) |
+| **Se prueba con** | `docker compose stop notifications` → `docker compose run --rm --no-deps tools send exit` → `docker compose start notifications` (y `tools provider down` para el proveedor) |
 | **Qué se degrada** | La **latencia de la notificación** crece durante la falla (hasta que se recupere, o ~15 s antes de la DLQ) y puede haber **duplicados** (ADR-003). Se pierde consistencia inmediata |
 
 **Verificado:** con el proceso de notificaciones muerto (`kill -9`) la ingesta respondió `202` y la alerta quedó creada con `lag 1` en el grupo `notifications`; al reiniciar se entregó por los dos canales y el `lag` volvió a 0 (≤ 3 s). Con el proveedor caído se observaron reintentos a 1 s, 2 s, 4 s y 8 s, `dead_letter` tras 5 intentos, el canal `log` enviado **una sola vez** y 1 mensaje en la DLQ.
