@@ -1,0 +1,87 @@
+# Esqueleto funcional de Ganadería 4.0 (arquitectura orientada a eventos).
+#
+#   docker compose up --build        <- arranca TODO con este único comando
+#
+# Procesos: redis (bus de eventos) + 4 servicios Node.js independientes.
+# La herramienta de demo (`tools`) no arranca sola: se usa con `docker compose run --rm tools ...`.
+name: ganaderia-eventos
+
+x-node-service: &node-service
+  restart: unless-stopped        # se reinicia si cae, pero respeta un `docker compose stop` manual
+  environment: &node-env
+    REDIS_URL: redis://redis:6379
+  depends_on:
+    redis:
+      condition: service_healthy
+
+services:
+  redis:
+    image: redis:7-alpine
+    # AOF: cada escritura se registra en disco (fsync cada 1 s). Ver ADR-002.
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    ports: ["6379:6379"]
+    volumes: ["redis-data:/data"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+
+  ingestion:
+    <<: *node-service
+    build: { context: ., args: { SERVICE: ingestion } }
+    ports: ["8081:8081"]
+    healthcheck: &hc
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/health >/dev/null || exit 1"]
+      interval: 3s
+      timeout: 2s
+      retries: 20
+
+  alerts:
+    <<: *node-service
+    build: { context: ., args: { SERVICE: alerts } }
+    ports: ["8082:8082"]
+    healthcheck:
+      <<: *hc
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/health >/dev/null || exit 1"]
+
+  track:
+    <<: *node-service
+    build: { context: ., args: { SERVICE: track } }
+    ports: ["8083:8083"]
+    healthcheck:
+      <<: *hc
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/health >/dev/null || exit 1"]
+
+  notifications:
+    <<: *node-service
+    build: { context: ., args: { SERVICE: notifications } }
+    ports: ["8084:8084"]
+    environment:
+      <<: *node-env
+      # E3 (modificabilidad): descomentar para activar el canal SMS sin tocar ningún otro servicio.
+      # NOTIFY_CHANNELS: log,email,sms
+    healthcheck:
+      <<: *hc
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8084/health >/dev/null || exit 1"]
+
+  # Simula collares, lanza ataques, muestra el estado y corre la demo.
+  tools:
+    build: { context: ., args: { SERVICE: ingestion } }
+    entrypoint: ["node", "tools/cli.js"]
+    profiles: ["tools"]
+    environment:
+      REDIS_URL: redis://redis:6379
+      INGESTION_URL: http://ingestion:8081
+      ALERTS_URL: http://alerts:8082
+      TRACK_URL: http://track:8083
+      NOTIFICATIONS_URL: http://notifications:8084
+    depends_on:
+      ingestion: { condition: service_healthy }
+      alerts: { condition: service_healthy }
+      track: { condition: service_healthy }
+      notifications: { condition: service_healthy }
+
+volumes:
+  redis-data:
