@@ -1,0 +1,28 @@
+flowchart TB
+    operador["<b>Operador / Técnico / Supervisor</b><br/>[Persona]<br/>Atienden alertas y consultan<br/>el estado del hato"]:::persona
+    admin["<b>Administrador</b><br/>[Persona]<br/>Gestiona fincas, vacas,<br/>collares y usuarios"]:::persona
+    collar["<b>Collar IoT</b><br/>[Dispositivo externo]<br/>Mide posición GPS y batería<br/>y los reporta"]:::externo
+    sistema["<b>Ganadería 4.0</b><br/>[Sistema de software]<br/>Monitorea el ganado, detecta incidentes<br/>y avisa a quien debe actuar"]:::sistema
+    correo["<b>Proveedor de correo</b><br/>[Sistema externo · Resend]"]:::externo
+    sms["<b>Proveedor de SMS</b><br/>[Sistema externo · futuro]"]:::futuro
+    ia["<b>Proveedor de IA</b><br/>[Sistema externo]<br/>Modelo de lenguaje (varios proveedores)"]:::externo
+
+    operador -->|"Consulta alertas y posiciones<br/>HTTPS (navegador)"| sistema
+    admin -->|"Administra fincas, vacas y collares<br/>HTTPS (navegador)"| sistema
+    collar -->|"Envía lecturas firmadas<br/>HTTPS/JSON + HMAC"| sistema
+    sistema -->|"Envía avisos de alerta<br/>API HTTPS"| correo
+    sistema -.->|"Enviará avisos de alerta<br/>API HTTPS (futuro)"| sms
+    sistema -->|"Pide resumen analítico de alertas<br/>API HTTPS"| ia
+
+    subgraph LEYENDA["Leyenda"]
+        direction LR
+        l1["Persona"]:::persona
+        l2["Sistema que se diseña"]:::sistema
+        l3["Sistema o dispositivo externo"]:::externo
+        l4["Externo aún no integrado"]:::futuro
+    end
+
+    classDef persona fill:#fef3c7,stroke:#b45309,color:#1f2937
+    classDef sistema fill:#dbeafe,stroke:#1d4ed8,stroke-width:3px,color:#1f2937
+    classDef externo fill:#ffffff,stroke:#475569,stroke-dasharray:6 3,color:#1f2937
+    classDef futuro fill:#ffffff,stroke:#94a3b8,stroke-dasharray:2 4,color:#64748b

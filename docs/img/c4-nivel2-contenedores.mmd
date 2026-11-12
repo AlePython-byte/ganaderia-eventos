@@ -1,0 +1,58 @@
+flowchart TB
+    operador["<b>Usuarios de la finca</b><br/>[Persona]<br/>Administrador, Supervisor,<br/>Técnico y Operador"]:::persona
+    collar["<b>Collar IoT</b><br/>[Dispositivo externo]"]:::externo
+    correo["<b>Proveedor de correo</b><br/>[Externo · Resend]"]:::externo
+    sms["<b>Proveedor de SMS</b><br/>[Externo · futuro]"]:::futuro
+    ia["<b>Proveedor de IA</b><br/>[Externo]"]:::externo
+
+    subgraph SIS["Ganadería 4.0 · límite del sistema"]
+        direction TB
+        subgraph SKEL["Esqueleto orientado a eventos (este repositorio)"]
+            direction LR
+            ing["<b>Servicio de Ingesta</b><br/>[Contenedor · Node.js 22]<br/>Autentica al collar (HMAC, nonce)<br/>y publica location.reported"]:::esq
+            bus[("<b>Bus de eventos</b><br/>[Contenedor · Redis 7 Streams]<br/>Conserva los eventos, controla pendientes,<br/>reintentos y DLQ")]:::bus
+            alt["<b>Servicio de Alertas</b><br/>[Contenedor · Node.js 22]<br/>Evalúa reglas (geocerca, batería)<br/>y publica alert.raised"]:::esq
+            trk["<b>Servicio de Seguimiento</b><br/>[Contenedor · Node.js 22]<br/>Guarda última posición<br/>e historial de cada vaca"]:::esq
+            ntf["<b>Servicio de Notificaciones</b><br/>[Contenedor · Node.js 22]<br/>Entrega por canal con reintentos<br/>(correo, SMS, log)"]:::esq
+        end
+        subgraph EXIST["Sistema de gestión existente"]
+            direction LR
+            web["<b>Frontend web</b><br/>[Contenedor · React + Vite]<br/>Interfaz de operadores y administradores"]:::exist
+            core["<b>API de Gestión</b><br/>[Contenedor · Spring Boot 4]<br/>Vacas, collares, geocercas, usuarios,<br/>reportes, JWT, resúmenes con IA"]:::exist
+            pg[("<b>PostgreSQL</b><br/>[Contenedor · base de datos]<br/>Datos de gestión")]:::exist
+        end
+    end
+
+    collar -->|"Envía lecturas firmadas<br/>HTTPS/JSON + HMAC"| ing
+    ing -->|"Publica location.reported y registra nonces<br/>Redis XADD / SET NX"| bus
+    alt -->|"Consume location.reported (grupo alerts)<br/>y publica alert.raised · Redis Streams"| bus
+    trk -->|"Consume location.reported (grupo track)<br/>Redis Streams"| bus
+    ntf -->|"Consume alert.raised (grupo notifications)<br/>fallos a la DLQ · Redis Streams"| bus
+    ntf -->|"Envía correo de alerta<br/>HTTPS (simulado en el esqueleto)"| correo
+    ntf -.->|"Enviará SMS · HTTPS (futuro)"| sms
+    operador -->|"Usa · HTTPS (navegador)"| web
+    web -->|"Consulta y administra datos<br/>HTTPS/JSON + JWT"| core
+    core -->|"Lee y escribe · SQL/JDBC"| pg
+    core -->|"Pide resumen de alertas · HTTPS"| ia
+    ing -.->|"Consultará secretos de collares<br/>HTTPS/JSON (objetivo)"| core
+    alt -.->|"Consultará geocercas<br/>HTTPS/JSON (objetivo)"| core
+    web -.->|"Consultará alertas y posiciones<br/>HTTPS/JSON (objetivo)"| alt
+
+    subgraph LEYENDA["Leyenda"]
+        direction LR
+        l1["Contenedor del esqueleto<br/>(implementado, se ejecuta)"]:::esq
+        l2["Contenedor del sistema existente<br/>(fuera del esqueleto)"]:::exist
+        l3[("Bus de eventos")]:::bus
+        l4["Externo"]:::externo
+        l5["Persona"]:::persona
+        l6["──▶ implementado"]:::nota
+        l7["┄▶ diseño objetivo, no<br/>implementado en el esqueleto"]:::nota
+    end
+
+    classDef persona fill:#fef3c7,stroke:#b45309,color:#1f2937
+    classDef esq fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px,color:#1f2937
+    classDef exist fill:#e5e7eb,stroke:#6b7280,color:#1f2937
+    classDef bus fill:#ffedd5,stroke:#ea580c,stroke-width:2px,color:#1f2937
+    classDef externo fill:#ffffff,stroke:#475569,stroke-dasharray:6 3,color:#1f2937
+    classDef futuro fill:#ffffff,stroke:#94a3b8,stroke-dasharray:2 4,color:#64748b
+    classDef nota fill:#ffffff,stroke:#ffffff,color:#1f2937
